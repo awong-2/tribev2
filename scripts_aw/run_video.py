@@ -1,12 +1,13 @@
 """Predict brain responses to one video with TRIBE v2.
 
-Paths, checkpoint and default language are set in config.py next to this file.
+Videos, paths, checkpoint and default language are set in config.py next to this file;
+pass the name of a video variable there (e.g. sherlock1), not a path.
 Run on a GPU node with the tribev2 environment active (or submit run_video.sbatch):
 
-    python scripts_aw/run_video.py /path/to/video.mp4
-    python scripts_aw/run_video.py /path/to/video.mp4 --language french --out_name clip01 --overwrite
+    python scripts_aw/run_video.py sherlock1
+    python scripts_aw/run_video.py sherlock1 --language french --overwrite
 
-Writes to config.OUTPUT_ROOT / <out_name, or the video file name without extension>:
+Writes to config.OUTPUT_ROOT / <name> (e.g. output/sherlock1/):
 
     preds.npy           predicted activity, (n_timesteps, n_vertices) on fsaverage5, one row per second
     segment_starts.npy  start time (s) in the video of each row of preds
@@ -91,21 +92,23 @@ def build_events(video: Path, language: str) -> pd.DataFrame:
     return standardize_events(events)
 
 
-def main(
-    video: str,
-    language: str = config.LANGUAGE,
-    out_name: str | None = None,
-    overwrite: bool = False,
-) -> None:
-    """Predict brain responses to a video and save them under config.OUTPUT_ROOT.
+def main(vid_path: str, language: str = config.LANGUAGE, overwrite: bool = False) -> None:
+    """Predict brain responses to a video and save them under config.OUTPUT_ROOT / vid_path.
 
     Args:
-        video: path to the video file.
+        vid_path: name of the video's variable in config.py (e.g. sherlock1).
         language: language of the speech in the video (english, french, spanish, chinese).
-        out_name: output folder name; defaults to the video file name without extension.
-        overwrite: rerun even if this output folder already has predictions.
+        overwrite: rerun even if this video already has predictions.
     """
-    video = Path(video).expanduser().resolve()
+    # Videos are the lowercase Path variables in config.py; settings are UPPERCASE.
+    videos = {k: v for k, v in vars(config).items() if isinstance(v, Path) and k.islower()}
+    vid_path = str(vid_path)  # fire turns numeric-looking names into ints
+    if vid_path not in videos:
+        raise ValueError(
+            f"Unknown video {vid_path!r}: add `{vid_path} = Path(...)` to config.py. "
+            f"Videos there: {sorted(videos)}"
+        )
+    video = videos[vid_path].expanduser().resolve()
     if not video.is_file():
         raise FileNotFoundError(f"Video not found: {video}")
     if video.suffix.lower() not in VALID_SUFFIXES["video_path"]:
@@ -126,8 +129,7 @@ def main(
             f"    python -m spacy download {SPACY_MODELS[language]} --no-cache-dir"
         )
 
-    # str() because fire turns numeric-looking names like 01 into ints.
-    out_dir = config.OUTPUT_ROOT / (str(out_name) if out_name is not None else video.stem)
+    out_dir = config.OUTPUT_ROOT / vid_path
     if (out_dir / "preds.npy").exists() and not overwrite:
         print(f"{out_dir / 'preds.npy'} already exists; pass --overwrite to redo it")
         return
@@ -144,6 +146,7 @@ def main(
     np.save(out_dir / "segment_starts.npy", np.array([s.start for s in segments]))
 
     run_info = {
+        "name": vid_path,
         "video": str(video),
         "language": language,
         "checkpoint": config.CHECKPOINT,

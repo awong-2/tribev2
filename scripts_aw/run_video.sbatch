@@ -9,8 +9,10 @@
 #
 # Predict brain responses to one video with TRIBE v2 (settings in scripts_aw/config.py).
 #
-#   sbatch scripts_aw/run_video.sbatch /path/to/video.mp4
-#   sbatch scripts_aw/run_video.sbatch /path/to/video.mp4 --language french
+#   sbatch scripts_aw/run_video.sbatch sherlock1
+#   sbatch scripts_aw/run_video.sbatch sherlock2 --language french
+#
+# The name is a video variable in scripts_aw/config.py, where its path is set.
 #
 # Everything after the script name is passed to run_video.py. Slurm won't create the
 # log folder above, so make it once first:

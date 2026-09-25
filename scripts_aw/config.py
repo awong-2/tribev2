@@ -14,3 +14,8 @@ TORCH_HOME = ANALYSIS_ROOT / "torch_cache"  # PyTorch downloads (whisperx's alig
 CHECKPOINT = "facebook/tribev2"
 DEVICE = "auto"  # "cuda" when a GPU is available, else "cpu"
 LANGUAGE = "english"  # default speech language; override per video with --language
+
+# Videos: pass the variable name to run_video.py (e.g. sherlock1); results go to OUTPUT_ROOT/<name>.
+# Keep these lowercase (settings above are UPPERCASE). Fill in the real paths.
+sherlock1 = Path("/path/to/sherlock_part1.mp4")
+sherlock2 = Path("/path/to/sherlock_part2.mp4")
