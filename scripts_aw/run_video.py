@@ -12,6 +12,12 @@ Writes to config.OUTPUT_ROOT / <out_name, or the video file name without extensi
     segment_starts.npy  start time (s) in the video of each row of preds
     events.csv          events fed to the model (video/audio chunks and transcribed words)
     run_info.json       video, language, checkpoint, preds shape, GPU, Slurm job id, finish time
+
+Also writes <video>.wav (neuralset's ExtractAudioFromVideo) and <video>.tsv (the whisperx
+transcript) next to the video, so its folder must be writable. Both are reused on reruns.
+
+The spaCy model for the language must be installed first (the check below says how);
+otherwise neuralset pip-installs it mid-job.
 """
 
 import json
@@ -24,10 +30,13 @@ import fire
 import config
 
 # huggingface_hub reads HF_HOME when first imported, so set it before tribev2 is imported.
+# Both are inherited by the whisperx subprocess (its models: HF_HOME; alignment model: TORCH_HOME).
 os.environ["HF_HOME"] = str(config.HF_HOME)
+os.environ["TORCH_HOME"] = str(config.TORCH_HOME)
 
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
+import spacy.util  # noqa: E402
 import torch  # noqa: E402
 from neuralset.events.transforms import (  # noqa: E402
     AddContextToWords,
@@ -42,8 +51,15 @@ from neuralset.events.utils import standardize_events  # noqa: E402
 from tribev2.demo_utils import VALID_SUFFIXES, TribeModel  # noqa: E402
 from tribev2.eventstransforms import ExtractWordsFromAudio  # noqa: E402
 
-# Languages the whisperx call accepts, see tribev2/eventstransforms.py (_get_transcript_from_audio).
-LANGUAGES = ("english", "french", "spanish", "dutch", "chinese")
+# spaCy model neuralset's sentence step loads per language (neuralset.utils.get_spacy_model).
+# These languages are also accepted by the whisperx call (tribev2/eventstransforms.py);
+# whisperx's dutch has no spaCy model there, so it isn't supported end to end.
+SPACY_MODELS = {
+    "english": "en_core_web_lg",
+    "french": "fr_core_news_lg",
+    "spanish": "es_core_news_lg",
+    "chinese": "zh_core_web_lg",
+}
 
 
 def build_events(video: Path, language: str) -> pd.DataFrame:
@@ -85,7 +101,7 @@ def main(
 
     Args:
         video: path to the video file.
-        language: language of the speech in the video (english, french, spanish, dutch, chinese).
+        language: language of the speech in the video (english, french, spanish, chinese).
         out_name: output folder name; defaults to the video file name without extension.
         overwrite: rerun even if this output folder already has predictions.
     """
@@ -96,8 +112,19 @@ def main(
         raise ValueError(
             f"Video must end with one of {sorted(VALID_SUFFIXES['video_path'])}: {video}"
         )
-    if language not in LANGUAGES:
-        raise ValueError(f"language must be one of {LANGUAGES}, got {language!r}")
+    already_written = all(video.with_suffix(s).exists() for s in (".wav", ".tsv"))
+    if not already_written and not os.access(video.parent, os.W_OK):
+        raise PermissionError(
+            f"{video.parent} isn't writable; the audio ({video.stem}.wav) and transcript "
+            f"({video.stem}.tsv) are written next to the video"
+        )
+    if language not in SPACY_MODELS:
+        raise ValueError(f"language must be one of {tuple(SPACY_MODELS)}, got {language!r}")
+    if not spacy.util.is_package(SPACY_MODELS[language]):
+        raise RuntimeError(
+            f"spaCy model {SPACY_MODELS[language]} isn't installed; install it once with the env active:\n"
+            f"    python -m spacy download {SPACY_MODELS[language]} --no-cache-dir"
+        )
 
     # str() because fire turns numeric-looking names like 01 into ints.
     out_dir = config.OUTPUT_ROOT / (str(out_name) if out_name is not None else video.stem)
