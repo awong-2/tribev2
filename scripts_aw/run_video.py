@@ -62,6 +62,10 @@ SPACY_MODELS = {
     "chinese": "zh_core_web_lg",
 }
 
+# tribev2's list (only enforced by get_events_dataframe) plus .m4v, Apple's MP4 variant;
+# neuralset reads videos through moviepy/ffmpeg, which doesn't depend on the extension.
+VIDEO_SUFFIXES = VALID_SUFFIXES["video_path"] | {".m4v"}
+
 
 def build_events(video: Path, language: str) -> pd.DataFrame:
     """Same as TribeModel.get_events_dataframe(video_path=...), with a choice of speech language.
@@ -111,10 +115,8 @@ def main(vid_path: str, language: str = config.LANGUAGE, overwrite: bool = False
     video = videos[vid_path].expanduser().resolve()
     if not video.is_file():
         raise FileNotFoundError(f"Video not found: {video}")
-    if video.suffix.lower() not in VALID_SUFFIXES["video_path"]:
-        raise ValueError(
-            f"Video must end with one of {sorted(VALID_SUFFIXES['video_path'])}: {video}"
-        )
+    if video.suffix.lower() not in VIDEO_SUFFIXES:
+        raise ValueError(f"Video must end with one of {sorted(VIDEO_SUFFIXES)}: {video}")
     already_written = all(video.with_suffix(s).exists() for s in (".wav", ".tsv"))
     if not already_written and not os.access(video.parent, os.W_OK):
         raise PermissionError(

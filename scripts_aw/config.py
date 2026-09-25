@@ -17,5 +17,5 @@ LANGUAGE = "english"  # default speech language; override per video with --langu
 
 # Videos: pass the variable name to run_video.py (e.g. sherlock1); results go to OUTPUT_ROOT/<name>.
 # Keep these lowercase (settings above are UPPERCASE). Fill in the real paths.
-sherlock1 = Path("/path/to/sherlock_part1.mp4")
-sherlock2 = Path("/path/to/sherlock_part2.mp4")
+sherlock1 = Path("/ceph/behrens/awong/sherlock_analyses/movie_data/Sherlock_part1_imovie.m4v")
+sherlock2 = Path("/ceph/behrens/awong/sherlock_analyses/movie_data/Sherlock_part2_imovie.m4v")
